@@ -1,4 +1,14 @@
-This is a fork of [jhericos](https://github.com/jherico) modified Vulkan Examples. The README from the forked repo follows below:
+This is a fork of [jhericos](https://github.com/jherico) modified Vulkan Examples.
+
+Currently depends on an intallation of [G3D](https://casual-effects.com/g3d/www/index.html), but this requirement will go away in future.
+
+glinterop: Compiles and runs using glew from G3D.
+
+renderheadless: Combined with the minimalOpenGL sample from G3D. It now shows rendering in OpenGL using a texture map imported from a Vulkan texture (using code from the glinterop example in this repo).
+
+To run: with G3D installed, build and run renderheadless.
+
+The README from the forked repo follows below:
 
 # C++ Vulkan examples and demos
 
