@@ -68,7 +68,7 @@ public:
                 imageCreateInfo.extent.width = 1024;
                 imageCreateInfo.extent.height = 1024;
                 imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-                imageCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eColorAttachment;  // | vk::ImageUsageFlagBits::eSampled;
+                imageCreateInfo.usage = vk::ImageUsageFlagBits::eColorAttachment;  // | vk::ImageUsageFlagBits::eSampled;
                 texture.image = device.createImage(imageCreateInfo);
                 texture.device = device;
                 texture.format = imageCreateInfo.format;
@@ -160,7 +160,8 @@ public:
     uint32_t& height{ size.height };
     vk::RenderPass renderPass;
     vk::Framebuffer framebuffer;
-    vks::Image colorAttachment, depthAttachment;
+    // This is now the shared resource.
+    vks::Image /*colorAttachment,*/ depthAttachment;
 
     /*
         Submit command buffer to a queue and wait for fence until queue operations have been finished
@@ -251,18 +252,26 @@ public:
         height = 1024;
         static const vk::Format colorFormat = vk::Format::eR8G8B8A8Unorm;
         static const vk::Format depthFormat = context.getSupportedDepthFormat();
+
+                    // Initialize the shared resource.
+        m_sharedResource.init(context);
+        vks::Image& colorAttachment = m_sharedResource.texture;
         {
             // Color attachment
-            vk::ImageCreateInfo image;
-            image.imageType = vk::ImageType::e2D;
-            image.format = colorFormat;
-            image.extent.width = width;
-            image.extent.height = height;
-            image.extent.depth = 1;
-            image.mipLevels = 1;
-            image.arrayLayers = 1;
-            image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
-            colorAttachment = context.createImage(image);
+            // This is now only used to create the depth image, below
+            // The color image is created in the shared resource.
+            //vk::ImageCreateInfo image;
+            //image.imageType = vk::ImageType::e2D;
+            //image.format = colorFormat;
+            //image.extent.width = width;
+            //image.extent.height = height;
+            //image.extent.depth = 1;
+            //image.mipLevels = 1;
+            //image.arrayLayers = 1;
+            //image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
+            //colorAttachment = context.createImage(image);
+            
+
 
             vk::ImageViewCreateInfo imageView;
             imageView.viewType = vk::ImageViewType::e2D;
@@ -275,6 +284,14 @@ public:
             imageView.image = colorAttachment.image;
             colorAttachment.view = device.createImageView(imageView);
 
+            vk::ImageCreateInfo image;
+            image.imageType = vk::ImageType::e2D;
+            image.format = colorFormat;
+            image.extent.width = width;
+            image.extent.height = height;
+            image.extent.depth = 1;
+            image.mipLevels = 1;
+            image.arrayLayers = 1;
             // Depth stencil attachment
             image.format = depthFormat;
             image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
@@ -298,7 +315,7 @@ public:
             attchmentDescriptions[0].stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
             attchmentDescriptions[0].stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
             attchmentDescriptions[0].initialLayout = vk::ImageLayout::eUndefined;
-            attchmentDescriptions[0].finalLayout = vk::ImageLayout::eTransferSrcOptimal;
+            attchmentDescriptions[0].finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
             // Depth attachment
             attchmentDescriptions[1].format = depthFormat;
             attchmentDescriptions[1].loadOp = vk::AttachmentLoadOp::eClear;
@@ -397,6 +414,7 @@ public:
         /* 
             Command buffer creation (for compute work submission)
         */
+        // TODO: this is the part that goes in the render loop
         {
             vk::CommandBuffer commandBuffer = context.allocateCommandBuffers(1)[0];
             commandBuffer.begin(vk::CommandBufferBeginInfo{});
@@ -433,6 +451,8 @@ public:
             };
 
             for (auto v : pos) {
+                // TODO: add a rotation matrix here to show that the image is being continuously rendered by Vulkan.
+                // Rotation code here:https://vulkan-tutorial.com/Uniform_buffers/Descriptor_layout_and_buffer
                 glm::mat4 mvpMatrix = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f) * glm::translate(glm::mat4(1.0f), v);
                 commandBuffer.pushConstants<glm::mat4>(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, mvpMatrix);
                 commandBuffer.drawIndexed(3, 1, 0, 0, 0);
@@ -445,96 +465,115 @@ public:
             device.waitIdle();
         }
 
+        #if 0
         /*
             Copy framebuffer image to host visible image
+            No longer necessary, as the image doesn't need to be host visible.
         */
-        {
-            // Create the linear tiled destination image to copy to and to read the memory from
-            vk::ImageCreateInfo imgCreateInfo;
-            imgCreateInfo.imageType = vk::ImageType::e2D;
-            imgCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
-            imgCreateInfo.extent.width = width;
-            imgCreateInfo.extent.height = height;
-            imgCreateInfo.extent.depth = 1;
-            imgCreateInfo.arrayLayers = 1;
-            imgCreateInfo.mipLevels = 1;
-            imgCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-            imgCreateInfo.tiling = vk::ImageTiling::eLinear;
-            imgCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst;
+        //{
+        //    // Create the linear tiled destination image to copy to and to read the memory from
+        //    vk::ImageCreateInfo imgCreateInfo;
+        //    imgCreateInfo.imageType = vk::ImageType::e2D;
+        //    imgCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
+        //    imgCreateInfo.extent.width = width;
+        //    imgCreateInfo.extent.height = height;
+        //    imgCreateInfo.extent.depth = 1;
+        //    imgCreateInfo.arrayLayers = 1;
+        //    imgCreateInfo.mipLevels = 1;
+        //    imgCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
+        //    imgCreateInfo.tiling = vk::ImageTiling::eLinear;
+        //    imgCreateInfo.usage = vk::ImageUsageFlagBits::eTransferDst;
 
-            m_sharedResource.init(context);
+        //    //m_sharedResource.init(context);
 
-            vks::Image& destImg = m_sharedResource.texture;
-            // Create the image
-            //m_destImg = context.createImage(imgCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+        //    vks::Image& destImg = m_sharedResource.texture;
+        //    // Create the image
+        //    //m_destImg = context.createImage(imgCreateInfo, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
 
-            // Do the actual blit from the swapchain image to our host visible destination image
-            context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
-                // Transition destination image to transfer destination layout
-                context.setImageLayout(copyCmd, destImg.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
-                                       vk::ImageLayout::eTransferDstOptimal);
-                // The source image is already in vk::ImageLayout::eTransferSrcOptimal due to the renderpass setup
-                vk::ImageCopy imageCopyRegion;
-                imageCopyRegion.srcSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
-                imageCopyRegion.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-                imageCopyRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
-                imageCopyRegion.extent.width = width;
-                imageCopyRegion.extent.height = height;
-                imageCopyRegion.extent.depth = 1;
-                copyCmd.copyImage(colorAttachment.image, vk::ImageLayout::eTransferSrcOptimal, destImg.image, vk::ImageLayout::eTransferDstOptimal,
-                                  imageCopyRegion);
-                // Transition destination image to general layout, which is the required layout for mapping the image memory later on
-                context.setImageLayout(copyCmd, destImg.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal,
-                                       vk::ImageLayout::eColorAttachmentOptimal);
-                // The source image needs no transition because we're no longer using it for anything
-            });
+        //    // Do the actual blit from the swapchain image to our host visible destination image
+        //    // TODO: image no longer has to be host visible, so we can just use the normal image here 
+        //    // and not bother copying.
+        //    context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& copyCmd) {
+        //        // Transition destination image to transfer destination layout
+        //        context.setImageLayout(copyCmd, destImg.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
+        //                               vk::ImageLayout::eTransferDstOptimal);
+        //        // The source image is already in vk::ImageLayout::eTransferSrcOptimal due to the renderpass setup
+        //        vk::ImageCopy imageCopyRegion;
+        //        imageCopyRegion.srcSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+        //        imageCopyRegion.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        //        imageCopyRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+        //        imageCopyRegion.extent.width = width;
+        //        imageCopyRegion.extent.height = height;
+        //        imageCopyRegion.extent.depth = 1;
+        //        copyCmd.copyImage(colorAttachment.image, vk::ImageLayout::eTransferSrcOptimal, destImg.image, vk::ImageLayout::eTransferDstOptimal,
+        //                          imageCopyRegion);
+        //        // Transition destination image to general layout, which is the required layout for mapping the image memory later on
+        //        context.setImageLayout(copyCmd, destImg.image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal,
+        //                               vk::ImageLayout::eColorAttachmentOptimal);
+        //        // The source image needs no transition because we're no longer using it for anything
+        //    });
 
-            //Transition to GL
-            m_sharedResource.transitionToGl(context.queue);
 
-            // Get layout of the image (including row pitch)
-            //vk::SubresourceLayout subResourceLayout = device.getImageSubresourceLayout(destImg.image, { vk::ImageAspectFlagBits::eColor });
 
-            // DONT map, messes up image creation
-            //            // Map image memory so we can start copying from it
-            //            imagedata = (const char*)destImg.map(subResourceLayout.offset, VK_WHOLE_SIZE);
-            //
-            //            /*
-            //            Save host visible framebuffer image to disk (ppm format)
-            //            */
-            //
-            //#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-            //            const char* filename = strcat(getenv("EXTERNAL_STORAGE"), "/headless.ppm");
-            //#else
-            //            const char* filename = "headless.ppm";
-            //#endif
-            //            std::ofstream file(filename, std::ios::out | std::ios::binary);
-            //
-            //            // ppm header
-            //            file << "P6\n" << width << "\n" << height << "\n" << 255 << "\n";
-            //
-            //            // ppm binary pixel data
-            //            for (uint32_t y = 0; y < height; y++) {
-            //                unsigned int* row = (unsigned int*)imagedata;
-            //                for (uint32_t x = 0; x < width; x++) {
-            //                    file.write((char*)row, 3);
-            //                    row++;
-            //                }
-            //                imagedata += subResourceLayout.rowPitch;
-            //            }
-            //            file.close();
-            //            LOG("Framebuffer image saved to %s\n", filename);
-            //
-            //            // Clean up resources
-            //            destImg.unmap();
-        }
+        //    // Get layout of the image (including row pitch)
+        //    //vk::SubresourceLayout subResourceLayout = device.getImageSubresourceLayout(destImg.image, { vk::ImageAspectFlagBits::eColor });
+
+        //    // DONT map, messes up image creation
+        //    //            // Map image memory so we can start copying from it
+        //    //            imagedata = (const char*)destImg.map(subResourceLayout.offset, VK_WHOLE_SIZE);
+        //    //
+        //    //            /*
+        //    //            Save host visible framebuffer image to disk (ppm format)
+        //    //            */
+        //    //
+        //    //#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+        //    //            const char* filename = strcat(getenv("EXTERNAL_STORAGE"), "/headless.ppm");
+        //    //#else
+        //    //            const char* filename = "headless.ppm";
+        //    //#endif
+        //    //            std::ofstream file(filename, std::ios::out | std::ios::binary);
+        //    //
+        //    //            // ppm header
+        //    //            file << "P6\n" << width << "\n" << height << "\n" << 255 << "\n";
+        //    //
+        //    //            // ppm binary pixel data
+        //    //            for (uint32_t y = 0; y < height; y++) {
+        //    //                unsigned int* row = (unsigned int*)imagedata;
+        //    //                for (uint32_t x = 0; x < width; x++) {
+        //    //                    file.write((char*)row, 3);
+        //    //                    row++;
+        //    //                }
+        //    //                imagedata += subResourceLayout.rowPitch;
+        //    //            }
+        //    //            file.close();
+        //    //            LOG("Framebuffer image saved to %s\n", filename);
+        //    //
+        //    //            // Clean up resources
+        //    //            destImg.unmap();
+        //}
+
+        // Helper on the context to quickly submit a command
+        // Probably one doesnt want to use this every frame?
+        // Don't need this. Renderpass takes care of transitioning shared resource to eColorAttachmentOptimal
+        //context.withPrimaryCommandBuffer([&](const vk::CommandBuffer& transitionCmdBuf) {
+        //    //Transition shared image (which is also the color attachment to be the color attachment optimal.
+        //    context.setImageLayout(transitionCmdBuf, 
+        //                           m_sharedResource.texture.image, 
+        //                           vk::ImageAspectFlagBits::eColor, 
+        //                           vk::ImageLayout::eUndefined,
+        //                           vk::ImageLayout::eColorAttachmentOptimal);
+        //});
+#endif
+
+        // Transition to GL
+        // This automatically signals the semaphore.
+        m_sharedResource.transitionToGl(context.queue);
     }
 
     ~VulkanExample() {
         m_sharedResource.destroy();
         vertexBuffer.destroy();
         indexBuffer.destroy();
-        colorAttachment.destroy();
         depthAttachment.destroy();
         device.destroy(renderPass);
         device.destroy(framebuffer);
