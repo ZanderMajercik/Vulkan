@@ -1,6 +1,6 @@
 This is a fork of [jhericos](https://github.com/jherico) modified Vulkan Examples.
 
-Currently depends on an intallation of [G3D](https://casual-effects.com/g3d/www/index.html), but this requirement will go away in future.
+Currently depends on an installation of [G3D](https://casual-effects.com/g3d/www/index.html), but this is just for convenience in linking against glew.
 
 glinterop: Compiles and runs using glew from G3D.
 
