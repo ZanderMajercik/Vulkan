@@ -895,7 +895,7 @@ GLFWwindow* window = nullptr;
 
 int main() {
     VulkanExample* vulkanExample = new VulkanExample();
-    std::cout << "Finished. Proceeding to GL...";
+    std::cout << "Finished. Proceeding to GL...\n";
 
     std::cout << "Minimal OpenGL 4.1 Example by Morgan McGuire\n\nW, A, S, D, C, Z keys to translate\nMouse click and drag to rotate\nESC to quit\n\n";
     std::cout << std::fixed;
