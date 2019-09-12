@@ -2,6 +2,8 @@
 
 <img src="./documentation/images/vulkanlogoscene.png" alt="Vulkan demo scene" height="256px"><img src="./documentation/images/c_0.jpg" alt="C++" height="256px">
 
+A fork of [jherico](https://github.com/jherico) modified Vulkan Examples. The README from the origin repo follows below:
+
 This is a fork of [Sascha Willems](https://github.com/SaschaWillems) excellent [Vulkan examples](https://github.com/SaschaWillems/Vulkan) with some modifications.  
 
 * All of the code except for the VulkanDebug stuff has been ported to use the [Vulkan C++ API](https://github.com/KhronosGroup/Vulkan-Hpp)
