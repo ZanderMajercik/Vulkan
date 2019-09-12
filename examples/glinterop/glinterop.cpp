@@ -43,6 +43,14 @@ public:
 
         glDisable(GL_DEPTH_TEST);
 
+        GLint n = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &n); 
+
+        for (GLint i = 0; i < n; i++) {
+            const char* extension = (const char*)glGetStringi(GL_EXTENSIONS, i);
+            printf("Ext %d: %s\n", i, extension);
+        } 
+
         // Create the texture for the FBO color attachment.
         // This only reserves the ID, it doesn't allocate memory
         glCreateTextures(GL_TEXTURE_2D, 1, &color);

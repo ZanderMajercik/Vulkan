@@ -99,7 +99,7 @@ protected:
     virtual void setupRenderPassBeginInfo();
     virtual void buildCommandBuffers();
 
-protected:
+public:
     // Last frame time, measured using a high performance timer (if available)
     float frameTimer{ 0.0015f };
     // Frame counter to display fps
