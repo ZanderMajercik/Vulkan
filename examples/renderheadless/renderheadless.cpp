@@ -144,14 +144,79 @@ public:
     /*
         Submit command buffer to a queue and wait for fence until queue operations have been finished
     */
-    void submitWork(const vk::CommandBuffer& cmdBuffer, const vk::Queue queue) {
+    void submitWork(const vk::CommandBuffer& cmdBuffer, const vk::Queue queue, const vk::Semaphore& waitSemaphore) {
         vk::SubmitInfo submitInfo;
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &cmdBuffer;
-        vk::Fence fence = device.createFence({});
-        queue.submit(submitInfo, fence);
-        device.waitForFences(fence, true, UINT64_MAX);
-        device.destroy(fence);
+
+        vk::PipelineStageFlags stageFlags = vk::PipelineStageFlagBits::eBottomOfPipe;
+        submitInfo.pWaitDstStageMask = &stageFlags;
+
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &m_sharedResource.semaphores.glComplete;
+
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &m_sharedResource.semaphores.glReady;
+
+        // This would never have been correct because we create the
+        // fence but don't pass it to the submit call.
+        //vk::Fence fence = device.createFence({});
+        queue.submit({ submitInfo }, {});
+        //device.waitForFences(fence, true, UINT64_MAX);
+        //device.destroy(fence);
+    }
+
+    void doRendering(int time) {
+        vk::CommandBuffer commandBuffer = context.allocateCommandBuffers(1)[0];
+        commandBuffer.begin(vk::CommandBufferBeginInfo{});
+
+        vk::ClearValue clearValues[2];
+        clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.2f, 1.0f });
+        clearValues[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
+
+        vk::RenderPassBeginInfo renderPassBeginInfo{ renderPass, framebuffer, vk::Rect2D{ vk::Offset2D{}, size }, 2, clearValues };
+        commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+
+        vk::Viewport viewport = {};
+        viewport.height = (float)height;
+        viewport.width = (float)width;
+        viewport.minDepth = (float)0.0f;
+        viewport.maxDepth = (float)1.0f;
+        commandBuffer.setViewport(0, viewport);
+
+        // Update dynamic scissor state
+        vk::Rect2D scissor;
+        scissor.extent = size;
+        commandBuffer.setScissor(0, scissor);
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+
+        // Render scene
+        vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, vertexBuffer.buffer, offset);
+        commandBuffer.bindIndexBuffer(indexBuffer.buffer, offset, vk::IndexType::eUint32);
+
+        std::vector<glm::vec3> pos = {
+            glm::vec3(-1.5f, 0.0f, -4.0f),
+            glm::vec3(0.0f, 0.0f, -2.5f),
+            glm::vec3(1.5f, 0.0f, -4.0f),
+        };
+
+        for (auto v : pos) {
+            // TODO: add a rotation matrix here to show that the image is being continuously rendered by Vulkan.
+            // Rotation code here:https://vulkan-tutorial.com/Uniform_buffers/Descriptor_layout_and_buffer
+            // Actually, this is much easier...
+            glm::mat4 mvpMatrix = glm::perspective(glm::radians(60.0f + (float(time % 120))), (float)width / (float)height, 0.1f, 256.0f) * glm::translate(glm::mat4(1.0f), v);
+            commandBuffer.pushConstants<glm::mat4>(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, mvpMatrix);
+            commandBuffer.drawIndexed(3, 1, 0, 0, 0);
+        }
+
+        commandBuffer.endRenderPass();
+        commandBuffer.end();
+
+        submitWork(commandBuffer, context.queue, m_sharedResource.semaphores.glComplete);
+        // This call was used only to signal the glReady semaphore, which is
+        // now done in submitWork() above.
+        //m_sharedResource.transitionToGl(context.queue);
     }
 
     VulkanExample() {
@@ -170,7 +235,7 @@ public:
         /*
             Vulkan instance creation (without surface extensions)
         */
-                context.requireExtensions({
+        context.requireExtensions({
             VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,    //
             VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME  //
         });
@@ -230,7 +295,7 @@ public:
         static const vk::Format colorFormat = vk::Format::eR8G8B8A8Unorm;
         static const vk::Format depthFormat = context.getSupportedDepthFormat();
 
-                    // Initialize the shared resource.
+        // Initialize the shared resource.
         m_sharedResource.init(context);
         vks::Image& colorAttachment = m_sharedResource.texture;
         {
@@ -371,64 +436,6 @@ public:
             builder.loadShader(vkx::getAssetPath() + "shaders/renderheadless/triangle.frag.spv", vk::ShaderStageFlagBits::eFragment);
             pipeline = builder.create(context.pipelineCache);
         }
-
-        /* 
-            Command buffer creation (for compute work submission)
-        */
-        // TODO: this is the part that goes in the render loop
-        {
-            vk::CommandBuffer commandBuffer = context.allocateCommandBuffers(1)[0];
-            commandBuffer.begin(vk::CommandBufferBeginInfo{});
-
-            vk::ClearValue clearValues[2];
-            clearValues[0].color = vks::util::clearColor({ 0.0f, 0.0f, 0.2f, 1.0f });
-            clearValues[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
-
-            vk::RenderPassBeginInfo renderPassBeginInfo{ renderPass, framebuffer, vk::Rect2D{ vk::Offset2D{}, size }, 2, clearValues };
-            commandBuffer.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-
-            vk::Viewport viewport = {};
-            viewport.height = (float)height;
-            viewport.width = (float)width;
-            viewport.minDepth = (float)0.0f;
-            viewport.maxDepth = (float)1.0f;
-            commandBuffer.setViewport(0, viewport);
-
-            // Update dynamic scissor state
-            vk::Rect2D scissor;
-            scissor.extent = size;
-            commandBuffer.setScissor(0, scissor);
-            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-
-            // Render scene
-            vk::DeviceSize offset = 0;
-            commandBuffer.bindVertexBuffers(0, vertexBuffer.buffer, offset);
-            commandBuffer.bindIndexBuffer(indexBuffer.buffer, offset, vk::IndexType::eUint32);
-
-            std::vector<glm::vec3> pos = {
-                glm::vec3(-1.5f, 0.0f, -4.0f),
-                glm::vec3(0.0f, 0.0f, -2.5f),
-                glm::vec3(1.5f, 0.0f, -4.0f),
-            };
-
-            for (auto v : pos) {
-                // TODO: add a rotation matrix here to show that the image is being continuously rendered by Vulkan.
-                // Rotation code here:https://vulkan-tutorial.com/Uniform_buffers/Descriptor_layout_and_buffer
-                glm::mat4 mvpMatrix = glm::perspective(glm::radians(60.0f), (float)width / (float)height, 0.1f, 256.0f) * glm::translate(glm::mat4(1.0f), v);
-                commandBuffer.pushConstants<glm::mat4>(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, mvpMatrix);
-                commandBuffer.drawIndexed(3, 1, 0, 0, 0);
-            }
-
-            commandBuffer.endRenderPass();
-            commandBuffer.end();
-
-            submitWork(commandBuffer, context.queue);
-            device.waitIdle();
-        }
-
-        // Transition to GL
-        // This automatically signals the semaphore.
-        m_sharedResource.transitionToGl(context.queue);
     }
 
     ~VulkanExample() {
@@ -1007,6 +1014,23 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         assert(glGetError() == GL_NONE);
 
+        // Once drawing is complete, signal the Vulkan semaphore indicating
+        // it can continue with it's render
+        // We can continue doing this every frame; Vk does not
+        // need to clear the signal or anything like that.
+
+        GLenum dstLayout = GL_LAYOUT_SHADER_READ_ONLY_EXT;
+        glSignalSemaphoreEXT(glComplete, 0, nullptr, 1, &colorTexture, &dstLayout);
+
+        // CALL vulkan render loop
+        // This will signal the glready semaphore.
+        vulkanExample->doRendering(timer);
+
+        // Semaphore should arrive from VK already signalled, so this should just work.
+        // As long as we only do it once. If we do it more than once, it crashes.
+        GLenum srcLayout = GL_LAYOUT_COLOR_ATTACHMENT_EXT;
+        glWaitSemaphoreEXT(glReady, 0, nullptr, 1, &colorTexture, &srcLayout);
+
         const float nearPlaneZ = -0.1f;
         const float farPlaneZ = -100.0f;
         const float verticalFieldOfView = 45.0f * PI / 180.0f;
@@ -1078,28 +1102,12 @@ int main() {
             // indexBuffer
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
 
-            // Semaphore should arrive from VK already signalled, so this should just work.
-            // As long as we only do it once. If we do it more than once, it crashes.
-            if (timer == 0) {
-            GLenum srcLayout = GL_LAYOUT_COLOR_ATTACHMENT_EXT;
-            glWaitSemaphoreEXT(glReady, 0, nullptr, 1, &colorTexture, &srcLayout);
-            }
-
             // uniform colorTexture (samplers cannot be placed in blocks)
             const GLint colorTextureUnit = 0;
             glActiveTexture(GL_TEXTURE0 + colorTextureUnit);
             glBindTexture(GL_TEXTURE_2D, colorTexture);
             glBindSampler(colorTextureUnit, trilinearSampler);
             glUniform1i(colorTextureUniform, colorTextureUnit);
-
-            // Once drawing is complete, signal the Vulkan semaphore indicating
-            // it can continue with it's render
-            // We can continue doing this every frame; Vk does not
-            // need to clear the signal or anything like that.
-            GLenum dstLayout = GL_LAYOUT_SHADER_READ_ONLY_EXT;
-            glSignalSemaphoreEXT(glComplete, 0, nullptr, 1, &colorTexture, &dstLayout);
-
-
 
             // Other uniforms in the interface block
             {
