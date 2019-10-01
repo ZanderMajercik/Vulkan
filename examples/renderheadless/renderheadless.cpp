@@ -11,7 +11,7 @@
 #include <vks/debug.hpp>
 #include <vks/context.hpp>
 #include <vks/pipelines.hpp>
-#include <vks/helpers.hpp>
+//#include <vks/helpers.hpp>
 
 #include "matrix.h"
 
@@ -827,7 +827,7 @@ int main() {
         windowHeight = framebufferHeight = 1080;
     }
 
-    window = initOpenGL(windowWidth, windowHeight, fullScreen, vsync, "minimalOpenGL");
+    window = initOpenGL(windowWidth, windowHeight, fullScreen, vsync, "minimalVKGLInterop");
 
     Vector3 bodyTranslation(0.0f, 1.6f, 5.0f);
     Vector3 bodyRotation;
