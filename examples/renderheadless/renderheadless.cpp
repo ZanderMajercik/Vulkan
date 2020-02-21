@@ -201,11 +201,15 @@ public:
             glm::vec3(1.5f, 0.0f, -4.0f),
         };
 
-        for (auto v : pos) {
+        for (glm::vec3& v : pos) {
             // TODO: add a rotation matrix here to show that the image is being continuously rendered by Vulkan.
             // Rotation code here:https://vulkan-tutorial.com/Uniform_buffers/Descriptor_layout_and_buffer
             // Actually, this is much easier...
-            glm::mat4 mvpMatrix = glm::perspective(glm::radians(60.0f + (float(time % 120))), (float)width / (float)height, 0.1f, 256.0f) * glm::translate(glm::mat4(1.0f), v);
+            glm::mat4 perspMatrix = glm::perspective(glm::radians(60.0f + (float(time % 120))), (float)width / (float)height, 0.1f, 256.0f);
+            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), v);
+
+            glm::mat4 mvpMatrix = perspMatrix * modelMatrix;
+
             commandBuffer.pushConstants<glm::mat4>(pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, mvpMatrix);
             commandBuffer.drawIndexed(3, 1, 0, 0, 0);
         }

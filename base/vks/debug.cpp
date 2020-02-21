@@ -78,6 +78,7 @@ void setupDebugging(const vk::Instance& instance, const vk::DebugReportFlagsEXT&
     vk::DebugReportCallbackCreateInfoEXT dbgCreateInfo = {};
     dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
     dbgCreateInfo.flags = flags;
+    dbgCreateInfo.pNext = nullptr;
     msgCallback = instance.createDebugReportCallbackEXT(dbgCreateInfo, nullptr, dispatcher);
 }
 
